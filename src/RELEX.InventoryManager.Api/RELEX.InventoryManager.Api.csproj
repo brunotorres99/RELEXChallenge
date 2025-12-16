@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<EnableSdkContainerDebugging>True</EnableSdkContainerDebugging>
+		<ContainerBaseImage>mcr.microsoft.com/dotnet/aspnet:10.0</ContainerBaseImage>
+		<UserSecretsId>e998caf5-a515-4a0e-a8dc-cbf64c2d8d13</UserSecretsId>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<ContainerPort Include="8081" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.1">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
+	  <PackageReference Include="Swashbuckle.AspNetCore.SwaggerGen" Version="10.0.1" />
+	  <PackageReference Include="Swashbuckle.AspNetCore.SwaggerUI" Version="10.0.1" />
+	</ItemGroup>
+
+	<ItemGroup>
+	  <ProjectReference Include="..\RELEX.InventoryManager.BusinessManager\RELEX.InventoryManager.BusinessManager.csproj" />
+	</ItemGroup>
+</Project>
