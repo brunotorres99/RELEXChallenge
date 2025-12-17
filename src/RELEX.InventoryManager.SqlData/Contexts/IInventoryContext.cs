@@ -8,4 +8,6 @@ public interface IInventoryContext
     public DbSet<OrderEntity> Orders { get; }
 
     public Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+
+    public Task SeedOrdersAsync(int seedNumber);
 }

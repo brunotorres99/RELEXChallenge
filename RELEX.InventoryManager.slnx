@@ -1,14 +1,17 @@
 <Solution>
-  <Folder Name="/1.Data/">
+  <Folder Name="/1.Common/">
+    <Project Path="src/RELEX.InventoryManager.Common/RELEX.InventoryManager.Common.csproj" Id="25112231-1c9a-43cc-92b7-d95b67ccb452" />
+  </Folder>
+  <Folder Name="/2.Data/">
     <Project Path="src/RELEX.InventoryManager.SqlData/RELEX.InventoryManager.SqlData.csproj" Id="8e9c156e-642c-4491-a687-d26e438f9598" />
   </Folder>
-  <Folder Name="/2.Managers/">
+  <Folder Name="/3.Managers/">
     <Project Path="src/RELEX.InventoryManager.BusinessManager/RELEX.InventoryManager.BusinessManager.csproj" Id="7d62be9c-b835-4775-b5ff-b8e10173d73d" />
   </Folder>
-  <Folder Name="/3.Apis/">
+  <Folder Name="/4.Apis/">
     <Project Path="src/RELEX.InventoryManager.Api/RELEX.InventoryManager.Api.csproj" Id="b198dea9-6088-45d7-aa25-5c40a2dcc73f" />
   </Folder>
-  <Folder Name="/4.Test/">
+  <Folder Name="/5.Test/">
     <Project Path="src/RELEX.InventoryManage.Test/RELEX.InventoryManage.Test.csproj" Id="6505425f-2182-45c4-9848-a5ea2c37975d" />
   </Folder>
 </Solution>

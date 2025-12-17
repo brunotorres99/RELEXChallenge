@@ -18,4 +18,9 @@ public class InventoryContext : DbContext, IInventoryContext
 
         modelBuilder.ApplyConfiguration(new OrderConfiguration());
     }
+
+    public async Task SeedOrdersAsync(int seedNumber)
+    {
+        await Database.ExecuteSqlAsync($"call inv.SeedOrders ({seedNumber})");
+    }
 }
