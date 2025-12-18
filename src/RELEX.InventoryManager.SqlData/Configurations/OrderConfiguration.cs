@@ -43,10 +43,10 @@ public class OrderConfiguration : IEntityTypeConfiguration<OrderEntity>
             .IsRequired();
 
         builder
-            .HasIndex(x => x.LocationCode, "IX_Order_LocationCode");
+            .HasIndex(x => new { x.OrderDate, x.LocationCode }, "IX_Order_OrderDate_LocationCode");
 
         builder
-            .HasIndex(x => x.ProductCode, "IX_Order_ProductCode");
+            .HasIndex(x => new { x.OrderDate, x.ProductCode }, "IX_Order_OrderDate_ProductCode");
 
         builder
             .HasIndex(x => x.OrderDate, "IX_Order_OrderDate");
