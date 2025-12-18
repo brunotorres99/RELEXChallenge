@@ -3,7 +3,7 @@ using RELEX.InventoryManager.SqlData.Entities;
 
 namespace RELEX.InventoryManager.SqlData.Contexts;
 
-public interface IInventoryContext
+public interface IInventoryContext : IDisposable
 {
     public DbSet<OrderEntity> Orders { get; }
 

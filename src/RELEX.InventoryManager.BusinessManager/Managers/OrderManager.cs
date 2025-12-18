@@ -1,9 +1,12 @@
 ﻿using FluentValidation;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using RELEX.InventoryManager.BusinessManager.Contracts;
 using RELEX.InventoryManager.BusinessManager.DTOs;
 using RELEX.InventoryManager.BusinessManager.Mappers;
+using RELEX.InventoryManager.Common.Configutations;
 using RELEX.InventoryManager.SqlData.Contexts;
 using RELEX.InventoryManager.SqlData.Entities;
 
@@ -26,13 +29,17 @@ namespace RELEX.InventoryManager.BusinessManager.Managers;
 /// </summary>
 public class OrderManager(ILogger<OrderManager> logger,
                          IInventoryContext context,
+                         IServiceProvider serviceProvider,
                          IValidator<OrderDto> orderValidator,
-                         IValidator<SearchOrderDto> searchOrderValidator) : IOrderManager
+                         IValidator<SearchOrderDto> searchOrderValidator,
+                         IOptions<InventoryOptions> inventoryOptions) : IOrderManager
 {
     private readonly ILogger<OrderManager> _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     private readonly IInventoryContext _context = context ?? throw new ArgumentNullException(nameof(context));
+    private readonly IServiceProvider _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
     private readonly IValidator<OrderDto> _orderValidator = orderValidator ?? throw new ArgumentNullException(nameof(orderValidator));
     private readonly IValidator<SearchOrderDto> _searchOrderValidator = searchOrderValidator ?? throw new ArgumentNullException(nameof(searchOrderValidator));
+    private readonly OrderProcessingSettings _orderProcessingSettings = inventoryOptions?.Value?.OrderProcessing ?? throw new ArgumentNullException(nameof(inventoryOptions));
 
     /// <summary>
     /// Retrieves an order by its identifier.
@@ -230,7 +237,6 @@ public class OrderManager(ILogger<OrderManager> logger,
         var failures = new List<FluentValidation.Results.ValidationFailure>();
 
         var batch = new List<OrderDto>();
-        const int batchSize = 1000;
 
         await foreach (OrderDto orderDto in batchOrders)
         {
@@ -243,7 +249,7 @@ public class OrderManager(ILogger<OrderManager> logger,
             }
 
             batch.Add(orderDto);
-            if (batch.Count >= batchSize)
+            if (batch.Count >= _orderProcessingSettings.BatchSize)
             {
                 if (failures.Any())
                     throw new FluentValidation.ValidationException(failures);
@@ -274,19 +280,22 @@ public class OrderManager(ILogger<OrderManager> logger,
     {
         if (batchOrders is null) throw new ArgumentNullException(nameof(batchOrders));
 
+        using IServiceScope scope = _serviceProvider.CreateScope();
+        using IInventoryContext localContext = scope.ServiceProvider.GetRequiredService<IInventoryContext>();
+
         // For each DTO, attempt to find an existing entity by Id.
         // - If none exists, create a new entity and assign a new Id.
         // - If an entity exists, update it in-place via the mapper so EF Core tracks changes.
         foreach (OrderDto orderDto in batchOrders)
         {
-            OrderEntity? orderEntity = await _context.Orders.FirstOrDefaultAsync(x => x.Id == orderDto.Id);
+            OrderEntity? orderEntity = await localContext.Orders.FirstOrDefaultAsync(x => x.Id == orderDto.Id);
 
             if (orderEntity is null)
             {
                 OrderEntity newOrderEntity = orderDto.ToEntity();
                 newOrderEntity.Id = Guid.NewGuid();
 
-                await _context.Orders.AddAsync(newOrderEntity);
+                await localContext.Orders.AddAsync(newOrderEntity);
             }
             else
             {
@@ -296,6 +305,6 @@ public class OrderManager(ILogger<OrderManager> logger,
         }
 
         // Persist the entire batch in a single SaveChanges call for efficiency.
-        await _context.SaveChangesAsync();
+        await localContext.SaveChangesAsync();
     }
 }

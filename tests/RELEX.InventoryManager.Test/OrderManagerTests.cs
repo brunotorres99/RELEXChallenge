@@ -3,12 +3,15 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Xunit;
 using FluentValidation;
 using RELEX.InventoryManager.BusinessManager.Managers;
 using RELEX.InventoryManager.BusinessManager.DTOs;
 using RELEX.InventoryManager.BusinessManager.Validators;
+using RELEX.InventoryManager.Common.Configutations;
 using RELEX.InventoryManager.SqlData.Contexts;
 using RELEX.InventoryManager.SqlData.Entities;
 
@@ -23,6 +26,39 @@ public class OrderManagerTests
             .Options;
 
         return new InventoryContext(options);
+    }
+
+    private static IServiceProvider CreateServiceProviderForInMemory(string dbName)
+    {
+        var services = new ServiceCollection();
+        var options = new DbContextOptionsBuilder<InventoryContext>()
+            .UseInMemoryDatabase(dbName)
+            .Options;
+
+        // Register IInventoryContext so manager's SaveBatchToDatabase can resolve a new context that shares the same in-memory DB
+        services.AddScoped<IInventoryContext>(_ => new InventoryContext(options));
+        return services.BuildServiceProvider();
+    }
+
+    private static OrderManager CreateManager(string dbName, InventoryContext ctx)
+    {
+        var provider = CreateServiceProviderForInMemory(dbName);
+
+        var inventoryOptions = Options.Create(new InventoryOptions
+        {
+            OrderProcessing = new OrderProcessingSettings
+            {
+                BatchSize = 1000
+            }
+        });
+
+        return new OrderManager(
+            NullLogger<OrderManager>.Instance,
+            ctx,
+            provider,
+            new OrderDtoValidator(),
+            new SearchOrderDtoValidator(),
+            inventoryOptions);
     }
 
     private static OrderDto CreateValidOrderDto()
@@ -50,8 +86,9 @@ public class OrderManagerTests
     [Fact]
     public async Task GetByIdAsync_ReturnsNull_WhenNotFound()
     {
-        using var ctx = CreateInMemoryContext(nameof(GetByIdAsync_ReturnsNull_WhenNotFound));
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var dbName = nameof(GetByIdAsync_ReturnsNull_WhenNotFound);
+        using var ctx = CreateInMemoryContext(dbName);
+        var manager = CreateManager(dbName, ctx);
 
         var result = await manager.GetByIdAsync(Guid.NewGuid());
 
@@ -61,7 +98,8 @@ public class OrderManagerTests
     [Fact]
     public async Task GetByIdAsync_ReturnsOrder_WhenFound()
     {
-        using var ctx = CreateInMemoryContext(nameof(GetByIdAsync_ReturnsOrder_WhenFound));
+        var dbName = nameof(GetByIdAsync_ReturnsOrder_WhenFound);
+        using var ctx = CreateInMemoryContext(dbName);
         var entity = new OrderEntity
         {
             Id = Guid.NewGuid(),
@@ -76,7 +114,7 @@ public class OrderManagerTests
         await ctx.Orders.AddAsync(entity);
         await ctx.SaveChangesAsync();
 
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var manager = CreateManager(dbName, ctx);
 
         var dto = await manager.GetByIdAsync(entity.Id);
 
@@ -88,8 +126,9 @@ public class OrderManagerTests
     [Fact]
     public async Task CreateOrderAsync_Valid_AddsAndReturnsCreated()
     {
-        using var ctx = CreateInMemoryContext(nameof(CreateOrderAsync_Valid_AddsAndReturnsCreated));
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var dbName = nameof(CreateOrderAsync_Valid_AddsAndReturnsCreated);
+        using var ctx = CreateInMemoryContext(dbName);
+        var manager = CreateManager(dbName, ctx);
 
         var order = CreateValidOrderDto();
 
@@ -106,8 +145,9 @@ public class OrderManagerTests
     [Fact]
     public async Task CreateOrderAsync_Invalid_ThrowsValidationException()
     {
-        using var ctx = CreateInMemoryContext(nameof(CreateOrderAsync_Invalid_ThrowsValidationException));
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var dbName = nameof(CreateOrderAsync_Invalid_ThrowsValidationException);
+        using var ctx = CreateInMemoryContext(dbName);
+        var manager = CreateManager(dbName, ctx);
 
         var invalid = CreateValidOrderDto();
         invalid.Quantity = 0; // invalid per validator
@@ -118,8 +158,9 @@ public class OrderManagerTests
     [Fact]
     public async Task UpdateOrderAsync_Throws_WhenNotFound()
     {
-        using var ctx = CreateInMemoryContext(nameof(UpdateOrderAsync_Throws_WhenNotFound));
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var dbName = nameof(UpdateOrderAsync_Throws_WhenNotFound);
+        using var ctx = CreateInMemoryContext(dbName);
+        var manager = CreateManager(dbName, ctx);
 
         var order = CreateValidOrderDto();
 
@@ -129,7 +170,8 @@ public class OrderManagerTests
     [Fact]
     public async Task UpdateOrderAsync_UpdatesEntity_WhenFound()
     {
-        using var ctx = CreateInMemoryContext(nameof(UpdateOrderAsync_UpdatesEntity_WhenFound));
+        var dbName = nameof(UpdateOrderAsync_UpdatesEntity_WhenFound);
+        using var ctx = CreateInMemoryContext(dbName);
         var entity = new OrderEntity
         {
             Id = Guid.NewGuid(),
@@ -144,7 +186,7 @@ public class OrderManagerTests
         await ctx.Orders.AddAsync(entity);
         await ctx.SaveChangesAsync();
 
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var manager = CreateManager(dbName, ctx);
 
         var update = new OrderDto
         {
@@ -169,7 +211,8 @@ public class OrderManagerTests
     [Fact]
     public async Task DeleteOrderAsync_RemovesEntity()
     {
-        using var ctx = CreateInMemoryContext(nameof(DeleteOrderAsync_RemovesEntity));
+        var dbName = nameof(DeleteOrderAsync_RemovesEntity);
+        using var ctx = CreateInMemoryContext(dbName);
         var entity = new OrderEntity
         {
             Id = Guid.NewGuid(),
@@ -184,7 +227,7 @@ public class OrderManagerTests
         await ctx.Orders.AddAsync(entity);
         await ctx.SaveChangesAsync();
 
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var manager = CreateManager(dbName, ctx);
 
         await manager.DeleteOrderAsync(entity.Id);
 
@@ -194,8 +237,9 @@ public class OrderManagerTests
     [Fact]
     public async Task CreateOrUpdateOrdersAsync_AddsNewOrdersFromStream()
     {
-        using var ctx = CreateInMemoryContext(nameof(CreateOrUpdateOrdersAsync_AddsNewOrdersFromStream));
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var dbName = nameof(CreateOrUpdateOrdersAsync_AddsNewOrdersFromStream);
+        using var ctx = CreateInMemoryContext(dbName);
+        var manager = CreateManager(dbName, ctx);
 
         var dto = CreateValidOrderDto();
         // ensure Id is default (manager will assign new Id when saving)
@@ -211,8 +255,9 @@ public class OrderManagerTests
     [Fact]
     public async Task CreateOrUpdateOrdersAsync_SkipsInvalidAndSavesValid()
     {
-        using var ctx = CreateInMemoryContext(nameof(CreateOrUpdateOrdersAsync_SkipsInvalidAndSavesValid));
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var dbName = nameof(CreateOrUpdateOrdersAsync_SkipsInvalidAndSavesValid);
+        using var ctx = CreateInMemoryContext(dbName);
+        var manager = CreateManager(dbName, ctx);
 
         var valid = CreateValidOrderDto();
         valid.Id = Guid.Empty;
@@ -232,7 +277,8 @@ public class OrderManagerTests
     [Fact]
     public async Task SearchOrdersAsync_FiltersAndAggregates()
     {
-        using var ctx = CreateInMemoryContext(nameof(SearchOrdersAsync_FiltersAndAggregates));
+        var dbName = nameof(SearchOrdersAsync_FiltersAndAggregates);
+        using var ctx = CreateInMemoryContext(dbName);
         // create orders across two dates and two products
         var date1 = DateOnly.FromDateTime(DateTime.UtcNow.Date);
         var date2 = date1.AddDays(1);
@@ -244,7 +290,7 @@ public class OrderManagerTests
         await ctx.Orders.AddRangeAsync(e1, e2, e3);
         await ctx.SaveChangesAsync();
 
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var manager = CreateManager(dbName, ctx);
 
         var search = new SearchOrderDto
         {
@@ -270,14 +316,15 @@ public class OrderManagerTests
     [Fact]
     public async Task SearchOrdersStreamAsync_ReturnsStreamedResults()
     {
-        using var ctx = CreateInMemoryContext(nameof(SearchOrdersStreamAsync_ReturnsStreamedResults));
+        var dbName = nameof(SearchOrdersStreamAsync_ReturnsStreamedResults);
+        using var ctx = CreateInMemoryContext(dbName);
         var e1 = new OrderEntity { Id = Guid.NewGuid(), LocationCode = "L1", ProductCode = "X", OrderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date), Quantity = 1, SubmittedBy = "u", SubmittedAt = DateTimeOffset.UtcNow };
         var e2 = new OrderEntity { Id = Guid.NewGuid(), LocationCode = "L2", ProductCode = "X", OrderDate = DateOnly.FromDateTime(DateTime.UtcNow.Date), Quantity = 2, SubmittedBy = "u", SubmittedAt = DateTimeOffset.UtcNow };
 
         await ctx.Orders.AddRangeAsync(e1, e2);
         await ctx.SaveChangesAsync();
 
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var manager = CreateManager(dbName, ctx);
 
         var streamDto = new SearchOrderStreamDto { ProductCode = "X" };
 
@@ -293,8 +340,9 @@ public class OrderManagerTests
     [Fact]
     public async Task SearchOrdersAsync_Throws_WhenInvalidSearchDto()
     {
-        using var ctx = CreateInMemoryContext(nameof(SearchOrdersAsync_Throws_WhenInvalidSearchDto));
-        var manager = new OrderManager(NullLogger<OrderManager>.Instance, ctx, new OrderDtoValidator(), new SearchOrderDtoValidator());
+        var dbName = nameof(SearchOrdersAsync_Throws_WhenInvalidSearchDto);
+        using var ctx = CreateInMemoryContext(dbName);
+        var manager = CreateManager(dbName, ctx);
 
         var bad = new SearchOrderDto
         {
