@@ -17,11 +17,11 @@
 ### Executing program
 
 * Set the Api project as start up and execute the project
-* Use the swagger or Postman to seed the data, this endpint will execute the seed stored procedure the generate data
+* Use the swagger or Postman to seed the data, this endpoint will execute the seed stored procedure the generate data
 
 ### Solution design and performance considerations
 
-* Seeding using a stored procedure for faster inserts
+* Seeding using a stored procedure for faster inserts and can be easily changed and without connection timeout, EF seeding can slow down the startup and with multiple instance can have concurrency problems, CSV + COPY would require for the data to be already generated. 
 * Indexes added for the most common filters
 * Use of stream for the bulk operation
 * Use of IAsyncEnumerable for faster retrieving of data and uses less memory
